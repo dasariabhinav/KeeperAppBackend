@@ -1,8 +1,8 @@
 import express from "express";
 import bodyParser from "body-parser";
-import pg from "pg";
 import cors from "cors";
 import { config } from 'dotenv';
+import { Pool } from "pg";
 config();
 
 
@@ -14,7 +14,7 @@ app.use(express.static("public"));
 app.use(cors());
 app.use(bodyParser.json());
 
-const db = new pg.Client({
+const pool = new Pool({
   user: process.env.DB_USER,
   database: process.env.DB_NAME,
   password: process.env.DB_PASSWORD,
@@ -23,21 +23,15 @@ const db = new pg.Client({
   ssl: process.env.DB_SSL === 'true'
 });
 
-async function connectToDatabase() {
-  try {
-    await db.connect();
-    console.log("Database connected successfully!");
-  } catch (err) {
-    console.error("Error connecting to database:", err);
-  }
-}
-
-connectToDatabase();
+pool.on('error', (err, client) => {
+  console.error('Unexpected error on idle client', err);
+  process.exit(-1);
+});
 
 //fetching data from the table
 app.get("/get", async (req, res) => {
   try {
-    const result = await db.query("SELECT * FROM keeper order by id desc");
+    const result = await pool.query("SELECT * FROM keeper order by id desc");
     res.json(result.rows);
   } catch (e) {
     console.error("something wrong");
@@ -46,38 +40,36 @@ app.get("/get", async (req, res) => {
 });
 
 //creating a new note
+// Creating a new note
 app.post("/add", async (req, res) => {
   try {
     const title = req.body.title;
     const content = req.body.content;
 
-    const querystatement = "insert into keeper (title,content) values ($1,$2)";
-    try {
-      const result = db.query(querystatement, [title, content]);
-    } catch (error) {
-      console.error("Error Executing query");
-    }
-  } catch (e) {
-    console.log(e);
-    res.status(500).send("Error processing request");
+    const queryStatement = "INSERT INTO keeper (title, content) VALUES ($1, $2)";
+    await pool.query(queryStatement, [title, content]);
+
+    res.status(201).send("Note added successfully");
+  } catch (error) {
+    console.error("Error adding note:", error);
+    res.status(500).send("Error adding note");
   }
 });
 
-//deleting a note
+// Deleting a note
 app.delete("/delete/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const querystatement = "DELETE FROM KEEPER where id= $1";
-    try {
-      const result = db.query(querystatement, [id]);
-    } catch (error) {
-      console.error("Error executing query" + e);
-    }
-  } catch (e) {
-    console.log(e);
-    res.status(500).send("Error processing request");
+    const queryStatement = "DELETE FROM keeper WHERE id = $1";
+    await pool.query(queryStatement, [id]);
+
+    res.status(200).send("Note deleted successfully");
+  } catch (error) {
+    console.error("Error deleting note:", error);
+    res.status(500).send("Error deleting note");
   }
 });
+
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
