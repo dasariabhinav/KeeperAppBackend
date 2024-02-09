@@ -2,9 +2,10 @@ import express from "express";
 import bodyParser from "body-parser";
 import cors from "cors";
 import { config } from 'dotenv';
-import { Pool } from "pg";
-config();
+import pkg from 'pg';
 
+config();
+const { Pool } = pkg;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
